@@ -43,20 +43,20 @@ def preprocess_text(text, tokenizer):
         # Try Keras/TensorFlow tokenizer
         elif hasattr(tokenizer, 'texts_to_sequences'):
             sequences = tokenizer.texts_to_sequences([text])
-            # You might need to pad sequences if your model expects fixed length
-            from tensorflow.keras.preprocessing.sequence import pad_sequences
-            # Adjust max_length based on your model's requirements
-            max_length = 100  # Change this to match your model's expected input length
-            return pad_sequences(sequences, maxlen=max_length)
+            try:
+                from tensorflow.keras.preprocessing.sequence import pad_sequences
+                # Adjust max_length based on your model's requirements
+                max_length = 100  # Change this to match your model's expected input length
+                return pad_sequences(sequences, maxlen=max_length)
+            except ImportError:
+                st.error("Keras preprocessing module not found. Please ensure tensorflow and keras are installed.")
+                return None
         
         # Try if it's a simple vectorizer with fit_transform capability
         elif hasattr(tokenizer, 'fit_transform'):
             return tokenizer.transform([text])
         
         # If it's a custom tokenizer, try common methods
-        elif hasattr(tokenizer, 'encode'):
-            return tokenizer.encode([text])
-        
         elif hasattr(tokenizer, '__call__'):
             return tokenizer([text])
         
@@ -65,8 +65,6 @@ def preprocess_text(text, tokenizer):
             
     except Exception as e:
         st.error(f"Error in text preprocessing: {str(e)}")
-        st.write(f"Tokenizer type: {type(tokenizer)}")
-        st.write(f"Available methods: {[method for method in dir(tokenizer) if not method.startswith('_')]}")
         return None
 
 try:
@@ -79,15 +77,18 @@ try:
         if model is not None and tokenizer is not None:
             try:
                 processed_input = preprocess_text(user_input, tokenizer)
-                prediction = model.predict(processed_input)
-                value = float(prediction[0]) if hasattr(prediction, '__getitem__') else float(prediction)
-                sentiment = "Negative" if value < 0.5 else "Positive"
-                color = "#ffcccc" if sentiment == "Negative" else "#ccffcc"
-                st.markdown(f"""
-                    <div style='background-color: {color}; padding: 20px; border-radius: 10px;'>
-                        <h3 style='color: #333;'>Sentiment: {sentiment}</h3>
-                    </div>
-                """, unsafe_allow_html=True)
+                if processed_input is not None:
+                    prediction = model.predict(processed_input)
+                    value = float(prediction[0]) if hasattr(prediction, '__getitem__') else float(prediction)
+                    sentiment = "Negative" if value < 0.5 else "Positive"
+                    color = "#ffcccc" if sentiment == "Negative" else "#ccffcc"
+                    st.markdown(f"""
+                        <div style='background-color: {color}; padding: 20px; border-radius: 10px;'>
+                            <h3 style='color: #333;'>Sentiment: {sentiment}</h3>
+                        </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.error("Text preprocessing failed. Unable to analyze sentiment.")
             except Exception as e:
                 st.error(f"Prediction error: {e}")
         else:
